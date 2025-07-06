@@ -1,0 +1,130 @@
+﻿@page "/make-reservation"
+@inject TravelessSystem.Services.FlightManager FlightManager
+@inject TravelessSystem.Services.ReservationManager ReservationManager
+
+
+<h3>Make a Reservation</h3>
+
+<div>
+    <h4>Find Flights</h4>
+    <label>Origin:</label>
+    <input @bind="origin" placeholder="Enter origin" />
+    <label>Destination:</label>
+    <input @bind="destination" placeholder="Enter destination" />
+    <label>Day:</label>
+    <input @bind="day" placeholder="Enter day" />
+    <button @onclick="SearchFlights">Search</button>
+</div>
+
+@if (flights != null && flights.Any())
+{
+    <h4>Select a Flight</h4>
+    <select @onchange="OnFlightSelected">
+        <option value="">-- Select Flight --</option>
+        @foreach (var flight in flights)
+        {
+            <option value="@flight.FlightCode">@flight.FlightCode - @flight.Origin to @flight.Destination</option>
+        }
+    </select>
+}
+
+@if (selectedFlight != null)
+{
+    <h4>Flight Details</h4>
+    <p><b>Flight Code:</b> @selectedFlight.FlightCode</p>
+    <p><b>Airline:</b> @selectedFlight.Airline</p>
+    <p><b>Day:</b> @selectedFlight.Day</p>
+    <p><b>Time:</b> @selectedFlight.Time</p>
+    <p><b>Cost:</b> @selectedFlight.Cost.ToString("C")</p>
+
+    <h4>Traveler Information</h4>
+    <label>Name:</label>
+    <input @bind="travelerName" placeholder="Full Name" />
+    <label>Citizenship:</label>
+    <input @bind="travelerCitizenship" placeholder="Citizenship" />
+    <br />
+    <button @onclick="OnMakeReservation">Reserve</button>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p style="color:red">@errorMessage</p>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <p style="color:green">@successMessage</p>
+    }
+}
+
+@code {
+    private string origin = "";
+    private string destination = "";
+    private string day = "";
+
+    private List<TravelessSystem.Models.Flight> flights = new();
+    private TravelessSystem.Models.Flight selectedFlight;
+
+    private string travelerName = "";
+    private string travelerCitizenship = "";
+
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    private void SearchFlights()
+    {
+        flights = FlightManager.FindFlights(origin, destination, day);
+        selectedFlight = null;
+        errorMessage = "";
+        successMessage = "";
+    }
+
+    private void OnFlightSelected(ChangeEventArgs e)
+    {
+        var flightCode = e.Value?.ToString();
+        selectedFlight = flights?.FirstOrDefault(f =>
+            string.Equals(f.FlightCode, flightCode, StringComparison.OrdinalIgnoreCase));
+
+        errorMessage = "";
+        successMessage = "";
+    }
+
+    private void OnMakeReservation()
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        if (selectedFlight == null)
+        {
+            errorMessage = "Please select a flight before making a reservation.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(travelerName))
+        {
+            errorMessage = "Name cannot be empty.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(travelerCitizenship))
+        {
+            errorMessage = "Citizenship cannot be empty.";
+            return;
+        }
+
+        try
+        {
+            var reservation = ReservationManager.MakeReservation(selectedFlight, travelerName, travelerCitizenship);
+            ReservationManager.PersistReservations();
+            successMessage = $"Reservation successful! Your code is: {reservation.Code}";
+
+            
+            travelerName = "";
+            travelerCitizenship = "";
+            selectedFlight = null;
+            flights = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}
